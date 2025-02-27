@@ -15,11 +15,9 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
-import PersonIcon from '@mui/icons-material/Person';
 import EmailIcon from '@mui/icons-material/Email';
 import PhoneIcon from '@mui/icons-material/Phone';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
-import WorkIcon from '@mui/icons-material/Work';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { User } from '../types/task';
@@ -69,9 +67,9 @@ const UserProfilePage = () => {
   const { addNotification } = useNotifications();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<User>>({
-    name: user?.name || '',
-    title: user?.title || '',
-    bio: user?.bio || '',
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    email: user?.email || '',
     phone: user?.phone || '',
     location: user?.location || '',
   });
@@ -97,9 +95,9 @@ const UserProfilePage = () => {
 
   const handleCancel = () => {
     setFormData({
-      name: user?.name || '',
-      title: user?.title || '',
-      bio: user?.bio || '',
+      firstName: user?.firstName || '',
+      lastName: user?.lastName || '',
+      email: user?.email || '',
       phone: user?.phone || '',
       location: user?.location || '',
     });
@@ -107,6 +105,20 @@ const UserProfilePage = () => {
   };
 
   if (!user) return null;
+
+  const getFullName = () => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    return user.firstName || user.lastName || user.username || 'Anonymous';
+  };
+
+  const getInitials = () => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    }
+    return (user.firstName?.[0] || user.username?.[0] || 'A').toUpperCase();
+  };
 
   return (
     <Box sx={{ 
@@ -164,33 +176,31 @@ const UserProfilePage = () => {
                 gap: 3,
               }}>
                 <LargeAvatar src={user.avatar}>
-                  {user.name.charAt(0).toUpperCase()}
+                  {getInitials()}
                 </LargeAvatar>
                 <Box>
                   <Typography variant="h4" gutterBottom>
                     {isEditing ? (
-                      <StyledTextField
-                        value={formData.name}
-                        onChange={handleChange('name')}
-                        placeholder="Your Name"
-                        size="small"
-                      />
+                      <Stack direction="row" spacing={2}>
+                        <StyledTextField
+                          value={formData.firstName}
+                          onChange={handleChange('firstName')}
+                          placeholder="First Name"
+                          size="small"
+                        />
+                        <StyledTextField
+                          value={formData.lastName}
+                          onChange={handleChange('lastName')}
+                          placeholder="Last Name"
+                          size="small"
+                        />
+                      </Stack>
                     ) : (
-                      user.name
+                      getFullName()
                     )}
                   </Typography>
                   <Typography variant="body1" color="text.secondary" gutterBottom>
-                    {isEditing ? (
-                      <StyledTextField
-                        value={formData.title}
-                        onChange={handleChange('title')}
-                        placeholder="Your Title"
-                        size="small"
-                        fullWidth
-                      />
-                    ) : (
-                      formData.title || 'No title set'
-                    )}
+                    {user.email}
                   </Typography>
                   <Stack direction="row" spacing={3} mt={2}>
                     <InfoItem icon={EmailIcon} label="Email" value={user.email} />
@@ -208,28 +218,8 @@ const UserProfilePage = () => {
                 </Box>
               </Box>
 
-              <Box sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  About
-                </Typography>
-                {isEditing ? (
-                  <StyledTextField
-                    fullWidth
-                    multiline
-                    rows={4}
-                    value={formData.bio}
-                    onChange={handleChange('bio')}
-                    placeholder="Tell us about yourself"
-                  />
-                ) : (
-                  <Typography color="text.secondary">
-                    {formData.bio || 'No bio added yet.'}
-                  </Typography>
-                )}
-              </Box>
-
               {isEditing && (
-                <Box sx={{ p: 3, pt: 0 }}>
+                <Box sx={{ p: 3 }}>
                   <Grid container spacing={3}>
                     <Grid item xs={12} sm={6}>
                       <StyledTextField
@@ -276,7 +266,7 @@ const UserProfilePage = () => {
                         Member Since
                       </Typography>
                       <Typography>
-                        {new Date(user.joinedDate).toLocaleDateString(undefined, {
+                        {new Date(user.createdAt).toLocaleDateString(undefined, {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',

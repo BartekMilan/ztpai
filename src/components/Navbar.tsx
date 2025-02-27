@@ -146,11 +146,11 @@ const Navbar = ({ darkMode, toggleDarkMode }: NavbarProps) => {
                       fontSize: '0.875rem',
                     }}
                   >
-                    {user?.name?.charAt(0)}
+                    {user?.firstName?.charAt(0)}
                   </Avatar>
                 }
               >
-                {user?.name}
+                {user?.firstName}
               </Button>
             </Box>
 

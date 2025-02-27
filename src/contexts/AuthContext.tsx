@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User } from '../types/task';
+import authService from '../services/authService';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
@@ -34,70 +35,76 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      // TODO: Replace with actual API call
-      // Simulating API call for now
-      const mockUser: User = {
-        id: 1,
-        email,
-        name: 'Test User',
-        title: 'Software Developer',
-        bio: 'Passionate about coding and building great software.',
-        location: 'New York, USA',
-        joinedDate: new Date().toISOString(),
-      };
-      const mockToken = 'mock-jwt-token';
-      setUser(mockUser);
-      setToken(mockToken);
-      localStorage.setItem('token', mockToken);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      const response = await authService.login({ email, password });
+      
+      if (response.success && response.token) {
+        setUser(response.user);
+        setToken(response.token);
+        return;
+      }
+      
+      throw new Error('Login failed');
     } catch (error) {
+      console.error('Error during login:', error);
       throw new Error('Login failed');
     }
   };
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (username: string, email: string, password: string, firstName?: string, lastName?: string) => {
     try {
-      // TODO: Replace with actual API call
-      // Simulating API call for now
-      const mockUser: User = {
-        id: Date.now(),
+      const response = await authService.register({
+        username,
         email,
-        name,
-        joinedDate: new Date().toISOString(),
-      };
-      const mockToken = 'mock-jwt-token';
-      setUser(mockUser);
-      setToken(mockToken);
-      localStorage.setItem('token', mockToken);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+        password,
+        firstName,
+        lastName
+      });
+      
+      if (response.success && response.token) {
+        setUser(response.user);
+        setToken(response.token);
+        return;
+      }
+      
+      throw new Error('Registration failed');
     } catch (error) {
+      console.error('Error during registration:', error);
       throw new Error('Registration failed');
     }
   };
 
   const updateProfile = async (data: Partial<User>) => {
     try {
-      // TODO: Replace with actual API call
-      // Simulating API call for now
       if (!user) throw new Error('No user logged in');
       
-      const updatedUser = {
-        ...user,
-        ...data,
+      const updateData = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        location: data.location,
+        avatar: data.avatar
       };
       
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      const response = await authService.updateProfile(updateData);
+      
+      if (response.success && response.user) {
+        setUser(response.user);
+        localStorage.setItem('user', JSON.stringify(response.user));
+        return;
+      }
+      
+      throw new Error('Profile update failed');
     } catch (error) {
+      console.error('Error updating profile:', error);
       throw new Error('Profile update failed');
     }
   };
 
   const logout = () => {
+    authService.logout();
     setToken(null);
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
   };
 
   const value = {

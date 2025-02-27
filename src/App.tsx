@@ -136,22 +136,17 @@ function App() {
                 <Route path="/" element={<Navigate to="/tasks" replace />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
-                <Route
-                  path="/tasks"
-                  element={
-                    <ProtectedRoute>
-                      <TasksPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/profile"
-                  element={
-                    <ProtectedRoute>
-                      <UserProfilePage />
-                    </ProtectedRoute>
-                  }
-                />
+                <Route path="/tasks" element={
+                  <ProtectedRoute>
+                    <TasksPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/profile" element={
+                  <ProtectedRoute>
+                    <UserProfilePage />
+                  </ProtectedRoute>
+                } />
+                <Route path="*" element={<Navigate to="/tasks" replace />} />
               </Routes>
             </div>
           </Router>

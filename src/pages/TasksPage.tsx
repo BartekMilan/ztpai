@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogActions,
   styled,
+  CircularProgress,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -26,10 +27,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import SortIcon from '@mui/icons-material/Sort';
 import AddIcon from '@mui/icons-material/Add';
 import TaskStats from '../components/TaskStats';
-import { Task, TaskStatus, TaskPriority, NewTask } from '../types/task';
-import useLocalStorage from '../hooks/useLocalStorage';
+import { Task, TaskStatus, TaskPriority, NewTask, TaskCreateData, TaskUpdateData } from '../types/task';
 import { useNotifications } from '../contexts/NotificationContext';
 import { differenceInDays } from 'date-fns';
+import taskService from '../services/taskService';
 
 const TaskCard = styled(Paper)(({ theme }) => ({
   border: '1px solid',
@@ -73,10 +74,11 @@ const SearchTextField = styled(TextField)(({ theme }) => ({
   },
 }));
 
-type FilterType = 'ALL' | 'TODO' | 'IN_PROGRESS' | 'DONE' | 'HIGH' | 'OVERDUE';
+type FilterType = 'ALL' | 'todo' | 'in-progress' | 'completed' | 'high' | 'OVERDUE';
 
 const TasksPage = () => {
-  const [tasks, setTasks] = useLocalStorage<Task[]>('tasks', []);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
@@ -88,22 +90,44 @@ const TasksPage = () => {
   const [newTask, setNewTask] = useState<NewTask>({
     title: '',
     description: '',
-    status: 'TODO',
-    priority: 'MEDIUM',
+    status: 'todo',
+    priority: 'medium',
     dueDate: '',
   });
-
+  
   const { addNotification } = useNotifications();
+
+  // Fetch tasks from API
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        setLoading(true);
+        const response = await taskService.getAllTasks();
+        if (response.success) {
+          setTasks(response.tasks);
+        }
+      } catch (error) {
+        console.error('Error fetching tasks:', error);
+        addNotification('Failed to load tasks', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTasks();
+  }, [addNotification]);
 
   // Check for upcoming and overdue tasks
   useEffect(() => {
     const checkTasksDueStatus = () => {
       const today = new Date();
       tasks.forEach(task => {
+        if (!task.dueDate) return;
+        
         const dueDate = new Date(task.dueDate);
         const daysUntilDue = differenceInDays(dueDate, today);
-
-        if (task.status !== 'DONE') {
+        
+        if (task.status !== 'completed') {
           if (daysUntilDue === 0) {
             addNotification(`Task "${task.title}" is due today!`, 'warning');
           } else if (daysUntilDue === 1) {
@@ -114,7 +138,7 @@ const TasksPage = () => {
         }
       });
     };
-
+    
     checkTasksDueStatus();
     // Check every day
     const interval = setInterval(checkTasksDueStatus, 86400000);
@@ -125,11 +149,11 @@ const TasksPage = () => {
     setTileFilter(filter);
     
     // Reset other filters when tile filter changes
-    if (['TODO', 'IN_PROGRESS', 'DONE'].includes(filter)) {
+    if (['todo', 'in-progress', 'completed'].includes(filter)) {
       setStatusFilter(filter);
       setPriorityFilter('ALL');
-    } else if (filter === 'HIGH') {
-      setPriorityFilter('HIGH');
+    } else if (filter === 'high') {
+      setPriorityFilter('high');
       setStatusFilter('ALL');
     } else {
       setStatusFilter('ALL');
@@ -140,18 +164,19 @@ const TasksPage = () => {
   const filteredAndSortedTasks = useMemo(() => {
     return tasks
       .filter((task) => {
-        const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          task.description.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = 
+          (task.title?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
+          (task.description?.toLowerCase().includes(searchQuery.toLowerCase()) || false);
         
         let matchesTileFilter = true;
         if (tileFilter === 'OVERDUE') {
-          matchesTileFilter = new Date(task.dueDate) < new Date() && task.status !== 'DONE';
-        } else if (tileFilter === 'HIGH') {
-          matchesTileFilter = task.priority === 'HIGH';
+          matchesTileFilter = task.dueDate ? new Date(task.dueDate) < new Date() && task.status !== 'completed' : false;
+        } else if (tileFilter === 'high') {
+          matchesTileFilter = task.priority === 'high';
         } else if (tileFilter !== 'ALL') {
           matchesTileFilter = task.status === tileFilter;
         }
-
+        
         const matchesStatus = statusFilter === 'ALL' || task.status === statusFilter;
         const matchesPriority = priorityFilter === 'ALL' || task.priority === priorityFilter;
         
@@ -160,12 +185,14 @@ const TasksPage = () => {
       })
       .sort((a, b) => {
         if (sortBy === 'dueDate') {
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
           return sortOrder === 'asc' 
             ? new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
             : new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
         }
         if (sortBy === 'priority') {
-          const priorityOrder = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
           return sortOrder === 'asc'
             ? priorityOrder[a.priority] - priorityOrder[b.priority]
             : priorityOrder[b.priority] - priorityOrder[a.priority];
@@ -176,23 +203,36 @@ const TasksPage = () => {
       });
   }, [tasks, searchQuery, statusFilter, priorityFilter, sortBy, sortOrder, tileFilter]);
 
-  const handleAddTask = () => {
-    if (!newTask.title.trim()) return;
+  const handleCreateTask = async () => {
+    if (!newTask.title.trim()) {
+      addNotification('Task title is required', 'error');
+      return;
+    }
     
-    const task: Task = {
-      id: Date.now(),
-      ...newTask,
-    };
-    setTasks([...tasks, task]);
-    setNewTask({
-      title: '',
-      description: '',
-      status: 'TODO',
-      priority: 'MEDIUM',
-      dueDate: '',
-    });
-    setIsEditDialogOpen(false); // Close the modal after task creation
-    addNotification(`New task "${task.title}" created`, 'success');
+    try {
+      const taskData: TaskCreateData = {
+        ...newTask,
+        dueDate: newTask.dueDate // dueDate jest już stringiem
+      };
+      
+      const response = await taskService.createTask(taskData);
+      
+      if (response.success) {
+        setTasks([...tasks, response.task]);
+        setIsEditDialogOpen(false);
+        setNewTask({
+          title: '',
+          description: '',
+          status: 'todo',
+          priority: 'medium',
+          dueDate: undefined
+        });
+        addNotification('Task created successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Error creating task:', error);
+      addNotification('Failed to create task', 'error');
+    }
   };
 
   const handleEditClick = (task: Task) => {
@@ -200,27 +240,48 @@ const TasksPage = () => {
     setIsEditDialogOpen(true);
   };
 
-  const handleEditSave = () => {
+  const handleUpdateTask = async () => {
     if (!editingTask) return;
     
-    const previousTask = tasks.find(task => task.id === editingTask.id);
-    setTasks(tasks.map(task => 
-      task.id === editingTask.id ? editingTask : task
-    ));
-
-    if (previousTask?.status !== 'DONE' && editingTask.status === 'DONE') {
-      addNotification(`Task "${editingTask.title}" completed! 🎉`, 'success');
+    try {
+      const taskData: TaskUpdateData = {
+        title: editingTask.title,
+        description: editingTask.description,
+        status: editingTask.status,
+        priority: editingTask.priority,
+        dueDate: editingTask.dueDate // dueDate jest już stringiem
+      };
+      
+      const response = await taskService.updateTask(editingTask._id, taskData);
+      
+      if (response.success) {
+        setTasks(tasks.map(task => 
+          task._id === editingTask._id ? response.task : task
+        ));
+        setIsEditDialogOpen(false);
+        setEditingTask(null);
+        addNotification('Task updated successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      addNotification('Failed to update task', 'error');
     }
-
-    setIsEditDialogOpen(false);
-    setEditingTask(null);
   };
 
-  const handleDeleteTask = (id: number) => {
+  const handleDeleteTask = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this task?')) {
-      const taskToDelete = tasks.find(task => task.id === id);
-      setTasks(tasks.filter(task => task.id !== id));
-      addNotification(`Task "${taskToDelete?.title}" deleted`, 'info');
+      try {
+        const taskToDelete = tasks.find(task => task._id === id);
+        const response = await taskService.deleteTask(id);
+        
+        if (response.success) {
+          setTasks(tasks.filter(task => task._id !== id));
+          addNotification(`Task "${taskToDelete?.title}" deleted`, 'info');
+        }
+      } catch (error) {
+        console.error('Error deleting task:', error);
+        addNotification('Failed to delete task', 'error');
+      }
     }
   };
 
@@ -286,9 +347,9 @@ const TasksPage = () => {
                           onChange={(e) => setStatusFilter(e.target.value)}
                         >
                           <MenuItem value="ALL">All</MenuItem>
-                          <MenuItem value="TODO">To Do</MenuItem>
-                          <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
-                          <MenuItem value="DONE">Done</MenuItem>
+                          <MenuItem value="todo">To Do</MenuItem>
+                          <MenuItem value="in-progress">In Progress</MenuItem>
+                          <MenuItem value="completed">Done</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -301,9 +362,9 @@ const TasksPage = () => {
                           onChange={(e) => setPriorityFilter(e.target.value)}
                         >
                           <MenuItem value="ALL">All</MenuItem>
-                          <MenuItem value="LOW">Low</MenuItem>
-                          <MenuItem value="MEDIUM">Medium</MenuItem>
-                          <MenuItem value="HIGH">High</MenuItem>
+                          <MenuItem value="low">Low</MenuItem>
+                          <MenuItem value="medium">Medium</MenuItem>
+                          <MenuItem value="high">High</MenuItem>
                         </Select>
                       </FormControl>
                     </Grid>
@@ -342,77 +403,96 @@ const TasksPage = () => {
           </Grid>
 
           <Grid item xs={12}>
-            <Grid container spacing={2}>
-              {filteredAndSortedTasks.map((task) => (
-                <Grid item xs={12} md={6} lg={4} key={task.id}>
-                  <TaskCard onClick={() => handleEditClick(task)}>
-                    <Box sx={{ p: 2 }}>
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
-                          {task.title}
-                        </Typography>
-                        <Typography 
-                          variant="body2" 
-                          color="text.secondary"
-                          sx={{ 
-                            mb: 2,
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {task.description}
-                        </Typography>
-                      </Box>
-                      
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-                        <StatusChip
-                          label={task.status}
-                          size="small"
-                          color={task.status === 'DONE' ? 'success' : task.status === 'IN_PROGRESS' ? 'info' : 'default'}
-                        />
-                        <PriorityChip
-                          label={task.priority}
-                          size="small"
-                          color={task.priority === 'HIGH' ? 'error' : task.priority === 'MEDIUM' ? 'warning' : 'default'}
-                        />
-                      </Stack>
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <Grid container spacing={2}>
+                {filteredAndSortedTasks.length === 0 ? (
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 4, textAlign: 'center' }}>
+                      <Typography variant="h6" color="text.secondary">
+                        No tasks found
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Create a new task to get started
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                ) : (
+                  filteredAndSortedTasks.map((task) => (
+                    <Grid item xs={12} md={6} lg={4} key={task._id}>
+                      <TaskCard onClick={() => handleEditClick(task)}>
+                        <Box sx={{ p: 2 }}>
+                          <Box sx={{ mb: 2 }}>
+                            <Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
+                              {task.title}
+                            </Typography>
+                            <Typography 
+                              variant="body2" 
+                              color="text.secondary"
+                              sx={{ 
+                                mb: 2,
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                              }}
+                            >
+                              {task.description}
+                            </Typography>
+                          </Box>
+                          
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                            <StatusChip
+                              label={task.status}
+                              size="small"
+                              color={task.status === 'completed' ? 'success' : task.status === 'in-progress' ? 'info' : 'default'}
+                            />
+                            <PriorityChip
+                              label={task.priority}
+                              size="small"
+                              color={task.priority === 'high' ? 'error' : task.priority === 'medium' ? 'warning' : 'default'}
+                            />
+                          </Stack>
 
-                      <Box sx={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Due: {new Date(task.dueDate).toLocaleDateString()}
-                        </Typography>
-                        <Box>
-                          <IconButton 
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditClick(task);
-                            }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton 
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteTask(task.id);
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}>
+                            <Typography variant="caption" color="text.secondary">
+                              {task.dueDate ? `Due: ${new Date(task.dueDate).toLocaleDateString()}` : 'No due date'}
+                            </Typography>
+                            <Box>
+                              <IconButton 
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditClick(task);
+                                }}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton 
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteTask(task._id);
+                                }}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          </Box>
                         </Box>
-                      </Box>
-                    </Box>
-                  </TaskCard>
-                </Grid>
-              ))}
-            </Grid>
+                      </TaskCard>
+                    </Grid>
+                  ))
+                )}
+              </Grid>
+            )}
           </Grid>
         </Grid>
       </Container>
@@ -465,9 +545,9 @@ const TasksPage = () => {
                       }
                     }}
                   >
-                    <MenuItem value="LOW">Low</MenuItem>
-                    <MenuItem value="MEDIUM">Medium</MenuItem>
-                    <MenuItem value="HIGH">High</MenuItem>
+                    <MenuItem value="low">Low</MenuItem>
+                    <MenuItem value="medium">Medium</MenuItem>
+                    <MenuItem value="high">High</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -486,9 +566,9 @@ const TasksPage = () => {
                       }
                     }}
                   >
-                    <MenuItem value="TODO">To Do</MenuItem>
-                    <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
-                    <MenuItem value="DONE">Done</MenuItem>
+                    <MenuItem value="todo">To Do</MenuItem>
+                    <MenuItem value="in-progress">In Progress</MenuItem>
+                    <MenuItem value="completed">Done</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -496,7 +576,7 @@ const TasksPage = () => {
             <TextField
               type="date"
               label="Due Date"
-              value={editingTask?.dueDate || newTask.dueDate}
+              value={editingTask?.dueDate?.split('T')[0] || newTask.dueDate}
               onChange={(e) => editingTask
                 ? setEditingTask(prev => prev ? { ...prev, dueDate: e.target.value } : null)
                 : setNewTask({ ...newTask, dueDate: e.target.value })
@@ -511,7 +591,7 @@ const TasksPage = () => {
             Cancel
           </Button>
           <Button 
-            onClick={editingTask ? handleEditSave : handleAddTask} 
+            onClick={editingTask ? handleUpdateTask : handleCreateTask} 
             variant="contained"
             disableElevation
           >

@@ -1,91 +1,101 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
-  Paper,
-  Typography,
   Box,
-  Avatar,
   Button,
+  Typography,
+  Avatar,
   Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
+  DialogContent,
+  DialogTitle,
   TextField,
   Chip,
+  styled,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 
+const StyledAvatar = styled(Avatar)(({ theme }) => ({
+  width: 100,
+  height: 100,
+  fontSize: '2rem',
+}));
+
 const UserProfile = () => {
-  const { user, logout } = useAuth();
+  const { user, updateProfile } = useAuth();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editedName, setEditedName] = useState(user?.name || '');
+  const [editedFirstName, setEditedFirstName] = useState(user?.firstName || '');
 
-  const handleSaveProfile = () => {
-    // TODO: Implement profile update logic
-    setIsEditDialogOpen(false);
+  const handleSaveProfile = async () => {
+    if (!user) return;
+
+    try {
+      await updateProfile({
+        firstName: editedFirstName,
+      });
+      setIsEditDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase();
+  const getInitials = (firstName: string) => {
+    return firstName.charAt(0).toUpperCase();
   };
+
+  if (!user) return null;
 
   return (
-    <Paper sx={{ p: 3, mb: 3 }}>
+    <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Avatar
+        <StyledAvatar
           sx={{
-            width: 64,
-            height: 64,
             bgcolor: 'primary.main',
-            fontSize: '1.5rem',
           }}
         >
-          {user?.name ? getInitials(user.name) : '?'}
-        </Avatar>
+          {user?.firstName ? getInitials(user.firstName) : '?'}
+        </StyledAvatar>
         <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="h6">{user?.name}</Typography>
+          <Typography variant="h6">{user?.firstName || user?.username}</Typography>
           <Typography color="textSecondary">{user?.email}</Typography>
           <Box sx={{ mt: 1 }}>
             <Chip label="Task Manager" size="small" />
           </Box>
         </Box>
-        <Box>
-          <Button
-            variant="outlined"
-            sx={{ mr: 1 }}
-            onClick={() => setIsEditDialogOpen(true)}
-          >
-            Edit Profile
-          </Button>
-          <Button variant="contained" color="error" onClick={logout}>
-            Logout
-          </Button>
-        </Box>
+        <Button
+          variant="outlined"
+          onClick={() => setIsEditDialogOpen(true)}
+        >
+          Edit Profile
+        </Button>
       </Box>
 
-      <Dialog open={isEditDialogOpen} onClose={() => setIsEditDialogOpen(false)}>
+      <Dialog
+        open={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Edit Profile</DialogTitle>
         <DialogContent>
-          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ pt: 2 }}>
             <TextField
-              label="Name"
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
               fullWidth
+              label="First Name"
+              value={editedFirstName}
+              onChange={(e) => setEditedFirstName(e.target.value)}
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setIsEditDialogOpen(false)}>
+            Cancel
+          </Button>
           <Button onClick={handleSaveProfile} variant="contained">
             Save
           </Button>
         </DialogActions>
       </Dialog>
-    </Paper>
+    </Box>
   );
 };
 

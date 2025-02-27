@@ -8,7 +8,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import TaskFilterTile from './TaskFilterTile';
 
-type FilterType = 'ALL' | 'TODO' | 'IN_PROGRESS' | 'DONE' | 'HIGH' | 'OVERDUE';
+type FilterType = 'ALL' | 'todo' | 'in-progress' | 'completed' | 'high' | 'OVERDUE';
 
 interface TaskStatsProps {
   tasks: Task[];
@@ -19,11 +19,13 @@ interface TaskStatsProps {
 const TaskStats = ({ tasks, activeFilter, onFilterChange }: TaskStatsProps) => {
   const stats = {
     total: tasks.length,
-    todo: tasks.filter(task => task.status === 'TODO').length,
-    inProgress: tasks.filter(task => task.status === 'IN_PROGRESS').length,
-    done: tasks.filter(task => task.status === 'DONE').length,
-    highPriority: tasks.filter(task => task.priority === 'HIGH').length,
-    overdue: tasks.filter(task => new Date(task.dueDate) < new Date() && task.status !== 'DONE').length,
+    todo: tasks.filter(task => task.status === 'todo').length,
+    inProgress: tasks.filter(task => task.status === 'in-progress').length,
+    done: tasks.filter(task => task.status === 'completed').length,
+    highPriority: tasks.filter(task => task.priority === 'high').length,
+    overdue: tasks.filter(task => 
+      task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed'
+    ).length,
   };
 
   const filters: Array<{
@@ -41,28 +43,28 @@ const TaskStats = ({ tasks, activeFilter, onFilterChange }: TaskStatsProps) => {
       color: '#0052CC',
     },
     {
-      id: 'TODO',
+      id: 'todo',
       icon: AccessTimeIcon,
       label: 'To Do',
       value: stats.todo,
       color: '#FF8B00',
     },
     {
-      id: 'IN_PROGRESS',
+      id: 'in-progress',
       icon: TrendingUpIcon,
       label: 'In Progress',
       value: stats.inProgress,
       color: '#00B8D9',
     },
     {
-      id: 'DONE',
+      id: 'completed',
       icon: CheckCircleIcon,
       label: 'Completed',
       value: stats.done,
       color: '#00875A',
     },
     {
-      id: 'HIGH',
+      id: 'high',
       icon: PriorityHighIcon,
       label: 'High Priority',
       value: stats.highPriority,
