@@ -21,6 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import Notifications from './Notifications';
 
+
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   backgroundColor: theme.palette.mode === 'dark' ? '#1B1B1B' : '#FFFFFF',
   color: theme.palette.mode === 'dark' ? '#FFFFFF' : '#172B4D',
