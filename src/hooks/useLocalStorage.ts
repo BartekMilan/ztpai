@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => void] {
   // Get from local storage then
   // parse stored json or return initialValue
-  const readValue = () => {
+  const readValue = useCallback(() => {
     if (typeof window === 'undefined') {
       return initialValue;
     }
@@ -15,7 +15,7 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => voi
       console.warn(`Error reading localStorage key "${key}":`, error);
       return initialValue;
     }
-  };
+  }, [key, initialValue]);
 
   const [storedValue, setStoredValue] = useState<T>(readValue);
 
@@ -34,7 +34,7 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => voi
 
   useEffect(() => {
     setStoredValue(readValue());
-  }, []);
+  }, [readValue]); // Teraz readValue jest stabilna dzięki useCallback
 
   return [storedValue, setValue];
 }

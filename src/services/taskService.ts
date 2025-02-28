@@ -1,5 +1,5 @@
 import api from './api';
-import { Task, TaskCreateData, TaskUpdateData } from '../types/task';
+import { TaskCreateData, TaskUpdateData } from '../types/task';
 
 interface TaskFilterParams {
   status?: string;
@@ -39,4 +39,5 @@ class TaskService {
   }
 }
 
-export default new TaskService();
+const taskService = new TaskService();
+export default taskService;

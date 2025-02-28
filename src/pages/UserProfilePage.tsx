@@ -8,7 +8,6 @@ import {
   Button,
   Avatar,
   Grid,
-  IconButton,
   styled,
   Stack,
 } from '@mui/material';
